@@ -1,7 +1,7 @@
 /*-
  * SPDX-License-Identifier: BSD-2-Clause
  *
- * Copyright (c) 2019, 2020, 2025 Kevin Lo <kevlo@openbsd.org>
+ * Copyright (c) 2019, 2020, 2025, 2026 Kevin Lo <kevlo@openbsd.org>
  *
  * Permission to use, copy, modify, and distribute this software for any
  * purpose with or without fee is hereby granted, provided that the above
@@ -16,7 +16,7 @@
  * OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
  */
 
-/*	$OpenBSD: if_rgereg.h,v 1.15 2025/09/19 00:41:14 kevlo Exp $	*/
+/*	$OpenBSD: if_rgereg.h,v 1.18 2026/10/13 00:20:11 kevlo Exp $	*/
 
 #ifndef	__IF_RGEREG_H__
 #define	__IF_RGEREG_H__
@@ -25,7 +25,7 @@
 #define RGE_PCI_BAR1		(PCI_MAPREG_START + 4)
 #define RGE_PCI_BAR2		(PCI_MAPREG_START + 8)
 
-/* For now, a single MSI message, no multi-RX/TX ring support */
+/* A single MSI message is used when not using multiple MSI-X vectors */
 #define	RGE_MSI_MESSAGES	1
 
 #define RGE_MAC0		0x0000
@@ -76,11 +76,24 @@
 #define RGE_TIMERINT3		0x00f4
 #define RGE_RADMFIFO_PROTECT	0x0402
 #define RGE_INTMITI(i)		(0x0a00 + (i) * 4)
+#define RGE_RX_MULTIVEC_INTMITI(i)	(0x0a00 + (i) * 8)
+#define RGE_TX_MULTIVEC_INTMITI(i)	(0x0a02 + (i) * 8)
 #define RGE_PHYBASE		0x0a40
+#define RGE_IMR_CLR_V2		0x0d00
+#define RGE_ISR_V2		0x0d04
+#define RGE_IMR_SET_V2		0x0d0c
+#define RGE_IMR_V4		0x0d10
+#define RGE_ISR_V4		0x0d14
 #define RGE_EPHYAR_EXT_ADDR	0x0ffe
 #define RGE_ADDR0		0x19e0
 #define RGE_ADDR1		0x19e4
+#define RGE_TXDESC_ADDR_LO_V2(i)	(0x2100 + ((i) - 1) * 8)
+#define RGE_TXDESC_ADDR_HI_V2(i)	(0x2104 + ((i) - 1) * 8)
+#define RGE_RXDESC_ADDR_LO_V2(i)	(0x4000 + ((i) - 1) * 8)
+#define RGE_RXDESC_ADDR_HI_V2(i)	(0x4004 + ((i) - 1) * 8)
 #define RGE_RSS_CTRL		0x4500
+#define RGE_RSS_KEY(i)		(0x4600 + (i) * 4)
+#define RGE_RSS_INDTBL(i)	(0x4700 + (i) * 4)
 #define RGE_RXQUEUE_CTRL	0x4800
 #define RGE_EEE_TXIDLE_TIMER	0x6048
 
@@ -89,6 +102,7 @@
 #define RGE_INT_CFG0_TIMEOUT_BYPASS	0x02
 #define RGE_INT_CFG0_MITIGATION_BYPASS	0x04
 #define RGE_INT_CFG0_RDU_BYPASS_8126	0x10
+#define RGE_INT_CFG0_AUTO_CLEAR_IMR	0x20
 #define RGE_INT_CFG0_AVOID_MISS_INTR	0x40
 
 /* Flags for register RGE_CMD */
@@ -121,6 +135,7 @@
 	RGE_ISR_SYSTEM_ERR)
 
 /* Flags for register RGE_TXCFG */
+#define RGE_TXCFG_NOCLOSE	0x00000040
 #define RGE_TXCFG_HWREV		0x7cf00000
 
 /* Flags for register RGE_RXCFG */
@@ -130,7 +145,9 @@
 #define RGE_RXCFG_BROAD		0x00000008
 #define RGE_RXCFG_RUNT		0x00000010
 #define RGE_RXCFG_ERRPKT	0x00000020
+#define RGE_RXCFG_VLANPHYS	0x00008000
 #define RGE_RXCFG_VLANSTRIP	0x00c00000
+#define RGE_RXCFG_ENBDESCV1	0x01000000
 
 /* Flags for register RGE_EECMD */
 #define RGE_EECMD_WRITECFG	0xc0
@@ -204,12 +221,25 @@
 /* Flags for register RGE_CPLUSCMD */
 #define RGE_CPLUSCMD_RXCSUM	0x0020
 
+/* Flags for register RGE_RSS_CTRL */
+#define RGE_RSS_CTRL_TCP_IPV4		0x00000001
+#define RGE_RSS_CTRL_IPV4		0x00000002
+#define RGE_RSS_CTRL_TCP_IPV6		0x00000004
+#define RGE_RSS_CTRL_IPV6		0x00000008
+#define RGE_RSS_CTRL_IPV6_EXT		0x00000010
+#define RGE_RSS_CTRL_TCP_IPV6_EXT	0x00000020
+
 #define RGE_TX_NSEGS		32
 
 #define RGE_TX_LIST_CNT		1024
 #define RGE_RX_LIST_CNT		1024
 
 #define RGE_ALIGN		256
+/*
+ * Descriptor ring sizes.  The ring DMA tags are sized for the larger
+ * (v1, 32 byte) descriptors; chips using the 16 byte v2 descriptors
+ * only use part of that.
+ */
 #define RGE_TX_LIST_SZ		(sizeof(struct rge_tx_desc) * RGE_TX_LIST_CNT)
 #define RGE_RX_LIST_SZ		(sizeof(struct rge_rx_desc) * RGE_RX_LIST_CNT)
 #define RGE_NEXT_TX_DESC(x)	(((x) + 1) % RGE_TX_LIST_CNT)
@@ -242,6 +272,23 @@ struct rge_tx_desc {
 #define RGE_TDEXTSTS_TCPCSUM	0x40000000
 #define RGE_TDEXTSTS_UDPCSUM	0x80000000
 
+/* V2 Tx descriptor */
+struct rge_tx_desc_v2 {
+	uint32_t		rge_cmdsts;
+	uint32_t		rge_extsts;
+	uint64_t		rge_addr;
+} __packed __aligned(16);
+
+#define RGE_TDCMDSTS_TCPHO_SHIFT	18
+#define RGE_TDCMDSTS_TCPHO_MAX		112
+
+#define RGE_TDEXTSTS_TSOIPV6_V2		0x00000000
+#define RGE_TDEXTSTS_TSOENB_V2		0x00010000
+#define RGE_TDEXTSTS_TSOIPV4_V2		0x20000000
+#define RGE_TDEXTSTS_TSOTCP_V2		0x40000000
+#define RGE_TDEXTSTS_MSS_SHIFT		18
+#define RGE_TDEXTSTS_MAX_MSS		2047
+
 /* Rx descriptor */
 struct rge_rx_desc {
 	union {
@@ -253,9 +300,9 @@ struct rge_rx_desc {
 
 	union {
 		struct {
-			uint32_t	rss;
-			uint16_t	length;
-			uint16_t	hdr_info;
+			uint32_t	rge_rss;
+			uint16_t	rge_length;
+			uint16_t	rge_hdr_info;
 		} rx_qword1;
 
 		struct {
@@ -307,6 +354,41 @@ struct rge_rx_desc {
 #define RGE_RDEXTSTS_UDPPKT	0x20000000
 #define RGE_RDEXTSTS_IPV4	0x40000000
 #define RGE_RDEXTSTS_IPV6	0x80000000
+
+/* V2 Rx descriptor */
+struct rge_rx_desc_v2 {
+	union {
+		uint64_t		rge_addr;
+
+		struct {
+			uint32_t	rge_hdr_info;
+			uint32_t	rge_rss;
+		} rx_rss;
+	} qword0;
+
+	struct {
+		uint32_t	rge_extsts;
+		uint32_t	rge_cmdsts;
+	} rx_qword0;
+} __packed __aligned(16);
+
+#define RGE_RDHDRINFO_RSSTYPE_NONE	0x00000000
+#define RGE_RDHDRINFO_RSSTYPE_MASK	0x30000000
+
+#define RGE_RDCMDSTS_TCPCSUMERR_V2	0x00008000
+#define RGE_RDCMDSTS_UDPCSUMERR_V2	0x00010000
+#define RGE_RDCMDSTS_IPCSUMERR_V2	0x00020000
+#define RGE_RDCMDSTS_TCPPKT_V2		0x00040000
+#define RGE_RDCMDSTS_UDPPKT_V2		0x00080000
+#define RGE_RDCMDSTS_RXERRSUM_V2	0x00400000
+#define RGE_RDCMDSTS_EOF_V2		0x10000000
+#define RGE_RDCMDSTS_SOF_V2		0x20000000
+
+enum {
+	CMDSTS_EOF,
+	CMDSTS_RXERRSUM,
+	CMDSTS_SOF
+};
 
 /*
  * @brief Statistics counter structure
@@ -369,7 +451,7 @@ struct rge_hw_mac_stats {
 #define RGE_MAC_R25D_2_RCODE_VER	0x0031
 #define RGE_MAC_R26_1_RCODE_VER		0x0033
 #define RGE_MAC_R26_2_RCODE_VER		0x0060
-#define RGE_MAC_R27_RCODE_VER		0x0036
+#define RGE_MAC_R27_RCODE_VER		0x0051
 #define RGE_MAC_R25_RCODE_VER		0x0b33
 #define RGE_MAC_R25B_RCODE_VER		0x0b99
 
@@ -379,9 +461,21 @@ struct rge_hw_mac_stats {
 #define RGE_TYPE_R26(sc)						\
 	((sc)->rge_type == MAC_R26_1 || (sc)->rge_type == MAC_R26_2)
 
-#define RGE_TIMEOUT		100
+#define RGE_TYPE_R27(sc)						\
+	((sc)->rge_type == MAC_R27 || (sc)->rge_type == MAC_R27ATF)
 
-#define RGE_JUMBO_FRAMELEN	9216
+#define RGE_MAX_VECTORS_8127		8
+#define RGE_TX_VECTOR_8127(i)		(8 + (i))
+#define RGE_LINK_VECTOR_8127		29
+#define RGE_MIN_MSIX_VECTORS_8127	30
+
+#define RGE_RSS_KEY_SIZE	40
+#define RGE_RSS_MAX_INDTBL_SIZE	128
+
+#define RGE_TIMEOUT		100
+#define RGE_TIMER_VALUE		19
+
+#define RGE_JUMBO_FRAMELEN	16384
 #define RGE_JUMBO_MTU							\
 	(RGE_JUMBO_FRAMELEN - ETHER_HDR_LEN - ETHER_CRC_LEN - 		\
 	ETHER_VLAN_ENCAP_LEN)

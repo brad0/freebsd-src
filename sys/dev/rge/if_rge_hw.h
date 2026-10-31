@@ -30,6 +30,8 @@ extern	void rge_hw_reset(struct rge_softc *);
 extern	void rge_config_imtype(struct rge_softc *, int);
 extern	void rge_disable_aspm_clkreq(struct rge_softc *);
 extern	void rge_setup_intr(struct rge_softc *, int);
+extern	void rge_disable_queue(struct rge_softc *, uint32_t);
+extern	void rge_enable_queue(struct rge_softc *, uint32_t);
 extern	void rge_write_csi(struct rge_softc *, uint32_t, uint32_t);
 extern	uint32_t rge_read_csi(struct rge_softc *, uint32_t);
 extern	void rge_write_phy(struct rge_softc *, uint16_t, uint16_t, uint16_t);

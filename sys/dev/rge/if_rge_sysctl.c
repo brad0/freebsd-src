@@ -148,6 +148,14 @@ rge_sysctl_drv_stats_attach(struct rge_softc *sc)
 	    CTLFLAG_RD, &sc->sc_drv_stats.tx_offload_vlan_tag_set,
 	    "Number of frames TX'ed with VLAN offload tag set");
 
+	SYSCTL_ADD_QUAD(ctx, child, OID_AUTO, "tx_offload_tso_set",
+	    CTLFLAG_RD, &sc->sc_drv_stats.tx_offload_tso_set,
+	    "Number of frames TX'ed with TCP segmentation offload");
+
+	SYSCTL_ADD_QUAD(ctx, child, OID_AUTO, "tx_offload_tso_err",
+	    CTLFLAG_RD, &sc->sc_drv_stats.tx_offload_tso_err,
+	    "Number of TSO frames dropped due to unsupported headers");
+
 	/* RX counters */
 	SYSCTL_ADD_QUAD(ctx, child, OID_AUTO, "rx_ether_csum_err",
 	    CTLFLAG_RD, &sc->sc_drv_stats.rx_ether_csum_err,
@@ -241,6 +249,21 @@ rge_sysctl_attach(struct rge_softc *sc)
 	SYSCTL_ADD_INT(ctx, SYSCTL_CHILDREN(tree), OID_AUTO,
 	    "disable_aspm", CTLFLAG_RDTUN, &sc->sc_disable_aspm, 0,
 	    "disable PCIe ASPM and ECPM (requires reboot)");
+
+	sc->sc_msix_disable = 0;
+	SYSCTL_ADD_INT(ctx, SYSCTL_CHILDREN(tree), OID_AUTO,
+	    "msix_disable", CTLFLAG_RDTUN, &sc->sc_msix_disable, 0,
+	    "disable MSI-X / multiple RX queues (requires reboot)");
+
+	sc->sc_max_rx_queues = 0;
+	SYSCTL_ADD_INT(ctx, SYSCTL_CHILDREN(tree), OID_AUTO,
+	    "max_rx_queues", CTLFLAG_RDTUN, &sc->sc_max_rx_queues, 0,
+	    "maximum number of RX queues to use, 0 for automatic "
+	    "(requires reboot)");
+
+	SYSCTL_ADD_INT(ctx, SYSCTL_CHILDREN(tree), OID_AUTO,
+	    "rx_queues", CTLFLAG_RD, &sc->sc_nqueues, 0,
+	    "number of RX queues in use");
 
 	/* Stats */
 	rge_sysctl_drv_stats_attach(sc);

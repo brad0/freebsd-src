@@ -3,7 +3,7 @@
 .\"
 .\" SPDX-License-Identifier: BSD-2-Clause
 .\"
-.Dd May 11, 2026
+.Dd October 31, 2026
 .Dt RGE 4
 .Os
 .Sh NAME
@@ -41,8 +41,13 @@ All NICs supported by the
 .Nm
 driver have TCP/IP checksum offload, hardware VLAN tagging/insertion
 features, Wake On Lan (WOL), and use a descriptor-based DMA mechanism.
-They are also
+The RTL8127 is also
 capable of TCP large send (TCP segmentation offload).
+.Pp
+On the RTL8127 the
+.Nm
+driver uses MSI-X interrupts with multiple receive queues and Receive Side
+Scaling (RSS) to spread received traffic over several CPUs.
 .Pp
 The RTL8125, RTL8126 and RTL8127 devices are single-chip solutions combining
 both a MAC and PHY.
@@ -55,7 +60,7 @@ Standalone cards are available in 1x PCIe models.
 .Pp
 The RTL8125, RTL8126 and RTL8127 also support jumbo frames, which can be
 configured via the interface MTU setting.
-The MTU is limited to 9126.
+The MTU is limited to 16362.
 Selecting an MTU larger than 1500 bytes with the
 .Xr ifconfig 8
 utility configures the adapter to receive and transmit jumbo frames.
@@ -163,6 +168,21 @@ consumption.
 This tunable can only be set in
 .Xr loader.conf 5
 and requires a reboot to take effect.
+.It Va dev.rge.%d.msix_disable
+Disable the use of MSI-X and multiple receive queues on the RTL8127,
+falling back to a single MSI interrupt.
+The default value is 0.
+This tunable can only be set in
+.Xr loader.conf 5 .
+.It Va dev.rge.%d.max_rx_queues
+Limit the number of receive queues used on the RTL8127.
+The driver uses a power of two number of queues, up to 8 and no more than
+the number of CPUs.
+The default value of 0 selects the number of queues automatically.
+This tunable can only be set in
+.Xr loader.conf 5 .
+.It Va dev.rge.%d.rx_queues
+The number of receive queues in use (read-only).
 .El
 .Sh DIAGNOSTICS
 .Bl -diag

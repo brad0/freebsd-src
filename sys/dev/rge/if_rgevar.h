@@ -16,7 +16,7 @@
  * OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
  */
 
-/*	$OpenBSD: if_rgereg.h,v 1.15 2025/09/19 00:41:14 kevlo Exp $	*/
+/*	$OpenBSD: if_rgereg.h,v 1.18 2026/10/13 00:20:11 kevlo Exp $	*/
 
 #ifndef	__IF_RGEVAR_H__
 #define	__IF_RGEVAR_H__
@@ -26,6 +26,15 @@
 #define	RGE_ASSERT_LOCKED(sc)	(mtx_assert(&sc->sc_mtx, MA_OWNED))
 #define	RGE_ASSERT_UNLOCKED(sc)	(mtx_assert(&sc->sc_mtx, MA_NOTOWNED))
 
+/*
+ * Per-RX-queue lock.  When more than one RX queue is in use each queue
+ * is serviced by its own MSI-X vector without holding the driver lock.
+ * Lock order: driver lock (RGE_LOCK) before the RX queue lock.
+ */
+#define	RGE_RXQ_LOCK(q)		(mtx_lock(&(q)->q_rx_mtx))
+#define	RGE_RXQ_UNLOCK(q)	(mtx_unlock(&(q)->q_rx_mtx))
+#define	RGE_RXQ_ASSERT_LOCKED(q) (mtx_assert(&(q)->q_rx_mtx, MA_OWNED))
+
 enum rge_mac_type {
 	MAC_UNKNOWN = 1,
 	MAC_R25,
@@ -34,7 +43,8 @@ enum rge_mac_type {
 	MAC_R25D_2,
 	MAC_R26_1,
 	MAC_R26_2,
-	MAC_R27
+	MAC_R27,
+	MAC_R27ATF
 };
 
 struct rge_drv_stats {
@@ -83,6 +93,8 @@ struct rge_drv_stats {
 	uint64_t		tx_offload_tcp_csum_set;
 	uint64_t		tx_offload_udp_csum_set;
 	uint64_t		tx_offload_vlan_tag_set;
+	uint64_t		tx_offload_tso_set;
+	uint64_t		tx_offload_tso_err;
 
 	uint64_t		rx_ether_csum_err;
 	uint64_t		rx_desc_jumbo_frag;
@@ -116,6 +128,7 @@ struct rge_tx {
 	bus_addr_t		rge_tx_list_paddr;
 	bus_dmamap_t		rge_tx_list_map;
 	struct rge_tx_desc	*rge_tx_list;
+	struct rge_tx_desc_v2	*rge_tx_list_v2;
 };
 
 struct rge_rx {
@@ -126,6 +139,7 @@ struct rge_rx {
 	bus_addr_t		rge_rx_list_paddr;
 	bus_dmamap_t		rge_rx_list_map;
 	struct rge_rx_desc	*rge_rx_list;
+	struct rge_rx_desc_v2	*rge_rx_list_v2;
 
 	struct mbuf		*rge_head;
 	struct mbuf		**rge_tail;
@@ -133,9 +147,25 @@ struct rge_rx {
 
 struct rge_queues {
 	struct rge_softc	*q_sc;
+	int			q_index;	/* RX queue / MSI-X vector */
+	int			q_tx_index;	/* TX MSI-X vector */
+	int			q_cpu;
+	char			q_name[32];
+	char			q_tx_name[32];
+
+	/* MSI-X resources (multi-vector mode only) */
+	struct resource		*q_irq;
 	void			*q_ihc;
-	int			q_index;
-	char			q_name[16];
+	struct resource		*q_tx_irq;
+	void			*q_tx_ihc;
+
+	/* Deferred RX processing (multi-vector mode only) */
+	struct taskqueue	*q_tq;
+	struct task		q_rx_task;
+
+	struct mtx		q_rx_mtx;
+	bool			q_rx_mtx_inited;
+
 	struct rge_tx		q_tx;
 	struct rge_rx		q_rx;
 };
@@ -173,7 +203,15 @@ struct rge_softc {
 	enum rge_mac_type	rge_type;
 
 	struct rge_queues	*sc_queues;
-	unsigned int		sc_nqueues;
+	int			sc_nqueues;	/* number of RX queues */
+	int			sc_ntxqs;	/* number of TX queues */
+	uint32_t		sc_linkvec;	/* link MSI-X vector */
+	uint16_t		rge_min_msix;	/* MSI-X vectors needed */
+	struct resource		*sc_link_irq;
+	void			*sc_link_ih;
+	int			sc_msix_disable;	/* tunable */
+	int			sc_max_rx_queues;	/* tunable */
+	uint8_t			sc_rss_key[RGE_RSS_KEY_SIZE];
 
 	bool			sc_detaching;
 	bool			sc_stopped;
@@ -193,6 +231,8 @@ struct rge_softc {
 	uint32_t		rge_flags;
 #define RGE_FLAG_MSI		0x00000001
 #define RGE_FLAG_PCIE		0x00000002
+#define RGE_FLAG_DESCV2		0x00000004
+#define RGE_FLAG_MULTIVEC	0x00000008
 
 	uint32_t		rge_intrs;
 	int			rge_timerintr;
