@@ -848,7 +848,7 @@ rge_encap(struct rge_softc *sc, struct rge_queues *q, struct mbuf **mp,
 	/* Set up hardware VLAN tagging */
 	if (m->m_flags & M_VLANTAG) {
 		sc->sc_drv_stats.tx_offload_vlan_tag_set++;
-		cflags |= htons(m->m_pkthdr.ether_vtag) | RGE_TDEXTSTS_VTAG;
+		cflags |= bswap16(m->m_pkthdr.ether_vtag) | RGE_TDEXTSTS_VTAG;
 	}
 
 	cur = idx;
@@ -2266,7 +2266,7 @@ rge_rxeof(struct rge_queues *q, struct mbufq *mq)
 		if (extsts & RGE_RDEXTSTS_VTAG) {
 			sc->sc_drv_stats.rx_offload_vlan_tag++;
 			m->m_pkthdr.ether_vtag =
-			    ntohs(extsts & RGE_RDEXTSTS_VLAN_MASK);
+			    bswap16(extsts & RGE_RDEXTSTS_VLAN_MASK);
 			m->m_flags |= M_VLANTAG;
 		}
 

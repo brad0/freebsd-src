@@ -1774,8 +1774,8 @@ rge_get_macaddr(struct rge_softc *sc, uint8_t *addr)
 	for (i = 0; i < ETHER_ADDR_LEN; i++)
 		addr[i] = RGE_READ_1(sc, RGE_MAC0 + i);
 
-	*(uint32_t *)&addr[0] = RGE_READ_4(sc, RGE_ADDR0);
-	*(uint16_t *)&addr[4] = RGE_READ_2(sc, RGE_ADDR1);
+	le32enc(&addr[0], RGE_READ_4(sc, RGE_ADDR0));
+	le16enc(&addr[4], RGE_READ_2(sc, RGE_ADDR1));
 
 	rge_set_macaddr(sc, addr);
 }

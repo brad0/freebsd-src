@@ -64,6 +64,55 @@
 
 
 /**
+ * @brief Convert the hardware statistics block to host byte order
+ *
+ * The NIC writes the counters out in little-endian order.
+ */
+static void
+rge_hw_mac_stats_letoh(struct rge_hw_mac_stats *hws)
+{
+	hws->rge_tx_ok = le64toh(hws->rge_tx_ok);
+	hws->rge_rx_ok = le64toh(hws->rge_rx_ok);
+	hws->rge_tx_er = le64toh(hws->rge_tx_er);
+	hws->rge_rx_er = le32toh(hws->rge_rx_er);
+	hws->rge_miss_pkt = le16toh(hws->rge_miss_pkt);
+	hws->rge_fae = le16toh(hws->rge_fae);
+	hws->rge_tx_1col = le32toh(hws->rge_tx_1col);
+	hws->rge_tx_mcol = le32toh(hws->rge_tx_mcol);
+	hws->rge_rx_ok_phy = le64toh(hws->rge_rx_ok_phy);
+	hws->rge_rx_ok_brd = le64toh(hws->rge_rx_ok_brd);
+	hws->rge_rx_ok_mul = le32toh(hws->rge_rx_ok_mul);
+	hws->rge_tx_abt = le16toh(hws->rge_tx_abt);
+	hws->rge_tx_undrn = le16toh(hws->rge_tx_undrn);
+	hws->re_tx_octets = le64toh(hws->re_tx_octets);
+	hws->re_rx_octets = le64toh(hws->re_rx_octets);
+	hws->re_rx_multicast64 = le64toh(hws->re_rx_multicast64);
+	hws->re_tx_unicast64 = le64toh(hws->re_tx_unicast64);
+	hws->re_tx_broadcast64 = le64toh(hws->re_tx_broadcast64);
+	hws->re_tx_multicast64 = le64toh(hws->re_tx_multicast64);
+	hws->re_tx_pause_on = le32toh(hws->re_tx_pause_on);
+	hws->re_tx_pause_off = le32toh(hws->re_tx_pause_off);
+	hws->re_tx_pause_all = le32toh(hws->re_tx_pause_all);
+	hws->re_tx_deferred = le32toh(hws->re_tx_deferred);
+	hws->re_tx_late_collision = le32toh(hws->re_tx_late_collision);
+	hws->re_tx_all_collision = le32toh(hws->re_tx_all_collision);
+	hws->re_tx_aborted32 = le32toh(hws->re_tx_aborted32);
+	hws->re_align_errors32 = le32toh(hws->re_align_errors32);
+	hws->re_rx_frame_too_long = le32toh(hws->re_rx_frame_too_long);
+	hws->re_rx_runt = le32toh(hws->re_rx_runt);
+	hws->re_rx_pause_on = le32toh(hws->re_rx_pause_on);
+	hws->re_rx_pause_off = le32toh(hws->re_rx_pause_off);
+	hws->re_rx_pause_all = le32toh(hws->re_rx_pause_all);
+	hws->re_rx_unknown_opcode = le32toh(hws->re_rx_unknown_opcode);
+	hws->re_rx_mac_error = le32toh(hws->re_rx_mac_error);
+	hws->re_tx_underrun32 = le32toh(hws->re_tx_underrun32);
+	hws->re_rx_mac_missed = le32toh(hws->re_rx_mac_missed);
+	hws->re_rx_tcam_dropped = le32toh(hws->re_rx_tcam_dropped);
+	hws->re_tdu = le32toh(hws->re_tdu);
+	hws->re_rdu = le32toh(hws->re_rdu);
+}
+
+/**
  * @brief Fetch the MAC statistics from the hardware
  *
  * I don't know if this can be done asynchronously (eg via
@@ -125,9 +174,10 @@ rge_hw_mac_stats_fetch(struct rge_softc *sc, struct rge_hw_mac_stats *hws)
 
 	bus_dmamap_sync(sc->sc_dmat_stats_buf, ss->map, BUS_DMASYNC_POSTREAD);
 
-	/* Copy them out - assume host == NIC order for now for bring-up */
-	if (hws != NULL)
+	if (hws != NULL) {
 		*hws = *ss->stats;
+		rge_hw_mac_stats_letoh(hws);
+	}
 
 	return (0);
 }
