@@ -399,8 +399,8 @@ aq_fw2x_get_mac_addr(struct aq_hw* hw, uint8_t* mac)
 		return (err);
 	}
 
-	mac_addr[0] = bswap32(mac_addr[0]);
-	mac_addr[1] = bswap32(mac_addr[1]);
+	mac_addr[0] = htobe32(mac_addr[0]);
+	mac_addr[1] = htobe32(mac_addr[1]);
 
 	memcpy(mac, (uint8_t*)mac_addr, ETHER_ADDR_LEN);
 

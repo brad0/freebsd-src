@@ -48,7 +48,7 @@
 #include "aq_common.h"
 
 #define AQ_WRITE_REG(hw, reg, value) \
-	bus_space_write_4((hw)->hw_tag, (hw)->hw_handle, (reg), htole32(value))
+	bus_space_write_4((hw)->hw_tag, (hw)->hw_handle, (reg), (value))
 
 #define AQ_HW_FLAG_ERR_UNPLUG	0x1UL
 
@@ -141,10 +141,17 @@ struct aq_hw_fw_mbox {
 
 struct aq_hw_fw_version {
 	union {
+		/* raw holds a host-order register value: major.minor.build. */
 		struct {
+#if BYTE_ORDER == LITTLE_ENDIAN
 			uint16_t build_number;
 			uint8_t minor_version;
 			uint8_t major_version;
+#else
+			uint8_t major_version;
+			uint8_t minor_version;
+			uint16_t build_number;
+#endif
 		};
 		uint32_t raw;
 	};

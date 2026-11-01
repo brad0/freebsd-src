@@ -438,6 +438,20 @@ union aq2_fw_statistics {
 	struct aq2_fw_statistics_b0 b0;
 };
 
+/*
+ * The statistics block is filled by host-order dword reads, low dword
+ * first, so on big-endian hosts each 64-bit counter has its halves swapped.
+ */
+static inline uint64_t
+aq2_fw_stat64(uint64_t v)
+{
+#if BYTE_ORDER == BIG_ENDIAN
+	return ((v << 32) | (v >> 32));
+#else
+	return (v);
+#endif
+}
+
 static int
 aq2_fw_get_stats(struct aq_hw *hw, struct aq_hw_stats *stats)
 {
@@ -459,32 +473,32 @@ aq2_fw_get_stats(struct aq_hw *hw, struct aq_hw_stats *stats)
 		stats->mprc = u.a0.rx_multicast_frames;
 		stats->bprc = u.a0.rx_broadcast_frames;
 		stats->erpr = u.a0.rx_errors;
-		stats->ubrc = u.a0.rx_unicast_octets;
-		stats->mbrc = u.a0.rx_multicast_octets;
-		stats->bbrc = u.a0.rx_broadcast_octets;
+		stats->ubrc = aq2_fw_stat64(u.a0.rx_unicast_octets);
+		stats->mbrc = aq2_fw_stat64(u.a0.rx_multicast_octets);
+		stats->bbrc = aq2_fw_stat64(u.a0.rx_broadcast_octets);
 		stats->prc = u.a0.rx_good_frames;
 		stats->uptc = u.a0.tx_unicast_frames;
 		stats->mptc = u.a0.tx_multicast_frames;
 		stats->bptc = u.a0.tx_broadcast_frames;
 		stats->erpt = u.a0.tx_errors;
-		stats->ubtc = u.a0.tx_unicast_octets;
-		stats->mbtc = u.a0.tx_multicast_octets;
-		stats->bbtc = u.a0.tx_broadcast_octets;
+		stats->ubtc = aq2_fw_stat64(u.a0.tx_unicast_octets);
+		stats->mbtc = aq2_fw_stat64(u.a0.tx_multicast_octets);
+		stats->bbtc = aq2_fw_stat64(u.a0.tx_broadcast_octets);
 		stats->ptc = u.a0.tx_good_frames;
 	} else if (hw->aq2_iface == AQ2_FW_INTERFACE_OUT_VERSION_IFACE_VER_B0) {
 		/* B0 reports aggregate octets only; per-cast stays zero. */
-		stats->brc = u.b0.rx_good_octets;
-		stats->btc = u.b0.tx_good_octets;
-		stats->uprc = u.b0.rx_unicast_frames;
-		stats->mprc = u.b0.rx_multicast_frames;
-		stats->bprc = u.b0.rx_broadcast_frames;
-		stats->erpr = u.b0.rx_errors;
-		stats->prc = u.b0.rx_good_frames;
-		stats->uptc = u.b0.tx_unicast_frames;
-		stats->mptc = u.b0.tx_multicast_frames;
-		stats->bptc = u.b0.tx_broadcast_frames;
-		stats->erpt = u.b0.tx_errors;
-		stats->ptc = u.b0.tx_good_frames;
+		stats->brc = aq2_fw_stat64(u.b0.rx_good_octets);
+		stats->btc = aq2_fw_stat64(u.b0.tx_good_octets);
+		stats->uprc = aq2_fw_stat64(u.b0.rx_unicast_frames);
+		stats->mprc = aq2_fw_stat64(u.b0.rx_multicast_frames);
+		stats->bprc = aq2_fw_stat64(u.b0.rx_broadcast_frames);
+		stats->erpr = aq2_fw_stat64(u.b0.rx_errors);
+		stats->prc = aq2_fw_stat64(u.b0.rx_good_frames);
+		stats->uptc = aq2_fw_stat64(u.b0.tx_unicast_frames);
+		stats->mptc = aq2_fw_stat64(u.b0.tx_multicast_frames);
+		stats->bptc = aq2_fw_stat64(u.b0.tx_broadcast_frames);
+		stats->erpt = aq2_fw_stat64(u.b0.tx_errors);
+		stats->ptc = aq2_fw_stat64(u.b0.tx_good_frames);
 	} else {
 		trace_warn(hw, dbg_fw,
 		    "aq2> unknown F/W interface version %u, no statistics",

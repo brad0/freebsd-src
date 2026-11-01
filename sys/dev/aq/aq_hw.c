@@ -86,11 +86,10 @@ aq_hw_invalidate_descriptor_cache(struct aq_hw *hw)
 inline uint32_t
 aq_hw_read_reg(struct aq_hw *hw, uint32_t reg)
 {
-	uint32_t val = le32toh(bus_space_read_4(hw->hw_tag, hw->hw_handle, reg));
+	uint32_t val = bus_space_read_4(hw->hw_tag, hw->hw_handle, reg);
 
 	if (__predict_false(val == 0xFFFFFFFFU) &&
-	    le32toh(bus_space_read_4(hw->hw_tag, hw->hw_handle, 0x10)) ==
-	    0xFFFFFFFFU)
+	    bus_space_read_4(hw->hw_tag, hw->hw_handle, 0x10) == 0xFFFFFFFFU)
 		atomic_set_rel_long(&hw->flags, AQ_HW_FLAG_ERR_UNPLUG);
 
 	return (val);
@@ -1062,17 +1061,14 @@ int
 aq_hw_rss_hash_set(struct aq_hw *hw,
     uint8_t rss_key[HW_ATL_RSS_HASHKEY_SIZE])
 {
-	uint32_t rss_key_dw[HW_ATL_RSS_HASHKEY_SIZE / 4];
 	uint32_t addr = 0U;
 	uint32_t i = 0U;
 	int err = 0;
 
 	AQ_DBG_ENTER();
 
-	memcpy(rss_key_dw, rss_key, HW_ATL_RSS_HASHKEY_SIZE);
-
 	for (i = 10, addr = 0U; i--; ++addr) {
-		uint32_t key_data = bswap32(rss_key_dw[i]);
+		uint32_t key_data = be32dec(&rss_key[i * 4]);
 		rpf_rss_key_wr_data_set(hw, key_data);
 		rpf_rss_key_addr_set(hw, addr);
 		rpf_rss_key_wr_en_set(hw, 1U);
@@ -1093,7 +1089,6 @@ int
 aq_hw_rss_hash_get(struct aq_hw *hw,
     uint8_t rss_key[HW_ATL_RSS_HASHKEY_SIZE])
 {
-	uint32_t rss_key_dw[HW_ATL_RSS_HASHKEY_SIZE / 4];
 	uint32_t addr = 0U;
 	uint32_t i = 0U;
 	int err = 0;
@@ -1102,9 +1097,8 @@ aq_hw_rss_hash_get(struct aq_hw *hw,
 
 	for (i = 10, addr = 0U; i--; ++addr) {
 		rpf_rss_key_addr_set(hw, addr);
-		rss_key_dw[i] = bswap32(rpf_rss_key_rd_data_get(hw));
+		be32enc(&rss_key[i * 4], rpf_rss_key_rd_data_get(hw));
 	}
-	memcpy(rss_key, rss_key_dw, HW_ATL_RSS_HASHKEY_SIZE);
 
 	err = aq_hw_err_from_flags(hw);
 

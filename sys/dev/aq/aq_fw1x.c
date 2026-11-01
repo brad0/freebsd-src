@@ -63,14 +63,25 @@ enum aq_fw1x_rate {
 
 union aq_fw1x_state_reg {
 	uint32_t val;
+	/* val holds a host-order register value; mode is bits 7:0. */
 	struct {
+#if BYTE_ORDER == LITTLE_ENDIAN
 		uint8_t mode;
-		        uint8_t reserved1;
-		        uint8_t speed;
-		        uint8_t reserved2 : 1;
-		        uint8_t disableDirtyWake : 1;
-		        uint8_t reserved3 : 2;
-		        uint8_t downshift : 4;
+		uint8_t reserved1;
+		uint8_t speed;
+		uint8_t reserved2 : 1;
+		uint8_t disableDirtyWake : 1;
+		uint8_t reserved3 : 2;
+		uint8_t downshift : 4;
+#else
+		uint8_t downshift : 4;
+		uint8_t reserved3 : 2;
+		uint8_t disableDirtyWake : 1;
+		uint8_t reserved2 : 1;
+		uint8_t speed;
+		uint8_t reserved1;
+		uint8_t mode;
+#endif
 	};
 };
 
@@ -281,8 +292,8 @@ aq_fw1x_get_mac_addr(struct aq_hw* hw, uint8_t* mac)
 		return (err);
 	}
 
-	mac_addr[0] = bswap32(mac_addr[0]);
-	mac_addr[1] = bswap32(mac_addr[1]);
+	mac_addr[0] = htobe32(mac_addr[0]);
+	mac_addr[1] = htobe32(mac_addr[1]);
 
 	memcpy(mac, (uint8_t*)mac_addr, ETHER_ADDR_LEN);
 
